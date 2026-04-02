@@ -101,4 +101,103 @@
     function addItem(e) {
         if(e) e.preventDefault(); // 阻斷電腦版預設刷新行為
 
-        const act = document.getElementById('inputAct
+        const act = document.getElementById('inputActName').value.trim();
+        const date = document.getElementById('inputDate').value;
+        const item = document.getElementById('inputItem').value.trim();
+        const val = document.getElementById('inputAmount').value;
+        const amount = parseFloat(val);
+
+        if (!act || !date || !item || isNaN(amount)) {
+            alert("請填寫完整資訊！");
+            return;
+        }
+
+        const newEntry = { actName: act, date: date, item: item, amount: amount };
+        records.push(newEntry);
+        
+        saveData();
+        renderTable();
+
+        // 電腦版優化：清空項目與金額並聚焦
+        document.getElementById('inputItem').value = '';
+        document.getElementById('inputAmount').value = '';
+        document.getElementById('inputItem').focus();
+    }
+
+    // 3. 儲存與渲染
+    function saveData() {
+        localStorage.setItem(DB_KEY, JSON.stringify(records));
+    }
+
+    function renderTable() {
+        const tbody = document.getElementById('recordBody');
+        tbody.innerHTML = '';
+        let total = 0;
+
+        records.forEach((rec, index) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${rec.actName}</td>
+                <td>${rec.date}</td>
+                <td>${rec.item}</td>
+                <td>$${Number(rec.amount).toLocaleString()}</td>
+                <td><button onclick="deleteEntry(${index})" style="background:var(--d); padding:5px 10px; font-size:12px;">刪除</button></td>
+            `;
+            tbody.appendChild(tr);
+            total += Number(rec.amount);
+        });
+
+        document.getElementById('totalDisplay').innerText = total.toLocaleString();
+    }
+
+    // 4. 刪除功能
+    function deleteEntry(index) {
+        if(confirm("確定要刪除這筆紀錄嗎？")) {
+            records.splice(index, 1);
+            saveData();
+            renderTable();
+        }
+    }
+
+    function clearAllData() {
+        if(confirm("警告：這將永久刪除所有紀錄，確定嗎？")) {
+            records = [];
+            localStorage.removeItem(DB_KEY);
+            renderTable();
+        }
+    }
+
+    // 5. Excel 功能
+    function exportToExcel() {
+        if (records.length === 0) return alert("目前沒有資料可以匯出");
+        const ws = XLSX.utils.json_to_sheet(records);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "記帳紀錄");
+        XLSX.writeFile(wb, "活動經費報表.xlsx");
+    }
+
+    function importFromExcel(input) {
+        const file = input.files[0];
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, {type: 'array'});
+            const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+            
+            // 轉換欄位名稱以符合程式邏輯
+            records = json.map(r => ({
+                actName: r.actName || r['活動名稱'] || '未命名活動',
+                date: r.date || r['日期'] || '',
+                item: r.item || r['項目'] || '',
+                amount: parseFloat(r.amount || r['金額'] || 0)
+            }));
+            
+            saveData();
+            renderTable();
+            alert("匯入成功！");
+        };
+        reader.readAsArrayBuffer(file);
+    }
+</script>
+</body>
+</html>
