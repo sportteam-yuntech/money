@@ -129,7 +129,7 @@
             const json = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
             
             if(confirm(`偵測到 ${json.length} 筆紀錄，是否覆蓋目前的資料？`)) {
-                records = json.map(row => ({
+                records = records.concat(json.map(...))(row => ({
                     date: row.date || row['日期'],
                     item: row.item || row['項目'],
                     amount: parseFloat(row.amount || row['金額'])
