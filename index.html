@@ -2,215 +2,49 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <!-- 優化點：防止手機輸入時縮放畫面，並設定 Web App 模式 -->
+    <!-- 關鍵：防止手機縮放導致 UI 跑版，並優化 Web App 顯示 -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>活動記帳系統 Pro Mobile V3</title>
     
-    <title>活動記帳系統 Pro Mobile</title>
+    <!-- 載入 Excel 處理庫 -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    
     <style>
         :root { 
             --primary-color: #4a90e2; 
             --success-color: #27ae60; 
             --danger-color: #e74c3c;
-            --secondary-color: #f8f9fa; 
+            --bg-color: #f0f2f5; 
         }
         
-        /* 手機版基礎設定：防止字體過小 */
         body { 
             font-family: "Microsoft JhengHei", -apple-system, sans-serif; 
-            margin: 0; padding: 15px; 
-            background: var(--secondary-color); 
+            margin: 0; padding: 15px; background: var(--bg-color); 
             -webkit-tap-highlight-color: transparent;
         }
         
-        .container { max-width: 650px; margin: auto; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
-        h2 { text-align: center; color: #333; margin-top: 0; font-size: 1.5rem; }
+        .container { max-width: 600px; margin: auto; background: white; padding: 20px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+        h2 { text-align: center; color: #333; margin: 0 0 20px 0; font-size: 1.4rem; }
         
         .form-group { margin-bottom: 12px; }
-        label { display: block; margin-bottom: 5px; font-weight: bold; color: #555; font-size: 0.9rem; }
+        label { display: block; margin-bottom: 6px; font-weight: bold; color: #555; font-size: 0.9rem; }
         
-        /* 加大輸入框點擊範圍，適合手指操作 */
+        /* 加大輸入框與防止 iOS 自動縮放 (16px) */
         input { 
-            width: 100%; padding: 14px; 
-            border: 1px solid #ddd; border-radius: 8px; 
-            box-sizing: border-box; font-size: 16px; /* 16px 可防止 iOS 自動放大 */
-            background: #fff;
+            width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; 
+            box-sizing: border-box; font-size: 16px; background: #fff;
         }
         
-        .btn-group { display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap; }
+        .btn-group { display: flex; gap: 10px; margin-top: 15px; }
         button { 
-            flex: 1; min-width: 100px; padding: 14px; 
-            border: none; border-radius: 8px; 
-            font-size: 16px; font-weight: bold; cursor: pointer; 
-            transition: 0.2s; color: white;
+            flex: 1; padding: 14px; border: none; border-radius: 8px; 
+            font-size: 16px; font-weight: bold; cursor: pointer; color: white;
         }
-        .btn-add { background: var(--primary-color); flex: 2; } /* 讓新增按鈕大一點 */
+        .btn-add { background: var(--primary-color); flex: 2; }
         .btn-export { background: var(--success-color); }
         .btn-clear { background: #95a5a6; }
-        button:active { opacity: 0.7; transform: scale(0.98); }
+        button:active { opacity: 0.8; transform: scale(0.98); }
 
-        /* 表格優化：手機版可橫向捲動 */
-        .table-wrapper { width: 100%; overflow-x: auto; margin-top: 20px; }
-        table { width: 100%; border-collapse: collapse; min-width: 300px; }
-        th, td { padding: 12px 8px; text-align: left; border-bottom: 1px solid #eee; font-size: 0.9rem; }
-        th { background: #f8f9fa; color: #666; }
-        
-        .btn-delete { 
-            background: var(--danger-color); padding: 8px 12px; 
-            font-size: 13px; border-radius: 6px; width: auto;
-        }
-
-        .total-section { 
-            margin-top: 20px; text-align: right; font-size: 1.2rem; 
-            font-weight: bold; color: #d9534f; border-top: 2px solid #eee; padding-top: 15px; 
-        }
-        
-        /* 針對窄螢幕的微調 */
-        @media (max-width: 400px) {
-            .container { padding: 15px; }
-            th:nth-child(1), td:nth-child(1) { font-size: 0.8rem; } /* 縮小日期字體 */
-        }
-    </style>
-</head>
-<body>
-
-<div class="container">
-    <h2>活動記帳系統 Mobile</h2>
-    
-    <div class="form-group">
-        <label>活動名稱</label>
-        <input type="text" id="activityName" placeholder="例如：2026 游泳班" oninput="saveActivityName()">
-    </div>
-
-    <hr style="border: 0; border-top: 1px solid #eee; margin: 15px 0;">
-
-    <div class="form-group">
-        <label>日期</label>
-        <input type="date" id="date">
-    </div>
-    <div class="form-group">
-        <label>項目</label>
-        <input type="text" id="item" list="item-options" placeholder="輸入或選擇項目">
-        <datalist id="item-options">
-            <option value="場地佈置">
-            <option value="餐飲招待">
-            <option value="交通接駁">
-            <option value="禮品採購">
-        </datalist>
-    </div>
-    <div class="form-group">
-        <label>金額</label>
-        <input type="number" id="amount" inputmode="decimal" placeholder="請輸入金額">
-    </div>
-
-    <div class="btn-group">
-        <button class="btn-add" onclick="addRecord()">新增紀錄</button>
-        <button class="btn-export" onclick="exportToExcel()">匯出</button>
-        <button class="btn-clear" onclick="clearAll()">清除</button>
-    </div>
-
-    <div class="table-wrapper">
-        <table id="recordTable">
-            <thead>
-                <tr>
-                    <th>日期</th>
-                    <th>項目</th>
-                    <th>金額</th>
-                    <th>操作</th>
-                </tr>
-            </thead>
-            <tbody id="recordBody"></tbody>
-        </table>
-    </div>
-
-    <div class="total-section">
-        總計：$<span id="totalAmount">0</span>
-    </div>
-</div>
-
-<script>
-    // 邏輯部分維持原樣，確保資料銜接
-    let records = JSON.parse(localStorage.getItem('activity_records')) || [];
-    
-    window.onload = function() {
-        document.getElementById('date').value = new Date().toISOString().split('T')[0];
-        document.getElementById('activityName').value = localStorage.getItem('current_activity_name') || '';
-        renderRecords();
-    };
-
-    function saveActivityName() {
-        localStorage.setItem('current_activity_name', document.getElementById('activityName').value);
-    }
-
-    function addRecord() {
-        const date = document.getElementById('date').value;
-        const item = document.getElementById('item').value;
-        const amount = parseFloat(document.getElementById('amount').value);
-
-        if (!date || !item || isNaN(amount)) {
-            alert('請填寫完整資訊！');
-            return;
-        }
-
-        records.push({ date, item, amount });
-        saveAndRender();
-        
-        document.getElementById('item').value = '';
-        document.getElementById('amount').value = '';
-    }
-
-    function deleteRecord(index) {
-        if (confirm("確定要刪除嗎？")) {
-            records.splice(index, 1);
-            saveAndRender();
-        }
-    }
-
-    function clearAll() {
-        if (confirm("確定要清除所有帳目嗎？")) {
-            records = [];
-            saveAndRender();
-        }
-    }
-
-    function saveAndRender() {
-        localStorage.setItem('activity_records', JSON.stringify(records));
-        renderRecords();
-    }
-
-    function renderRecords() {
-        const tbody = document.getElementById('recordBody');
-        const totalSpan = document.getElementById('totalAmount');
-        tbody.innerHTML = '';
-        let total = 0;
-
-        records.forEach((rec, index) => {
-            const row = `<tr>
-                <td>${rec.date.substring(5)}</td> <!-- 手機版縮短日期顯示 -->
-                <td>${rec.item}</td>
-                <td>$${rec.amount.toLocaleString()}</td>
-                <td><button class="btn-delete" onclick="deleteRecord(${index})">刪）</button></td>
-            </tr>`;
-            tbody.innerHTML += row;
-            total += rec.amount;
-        });
-
-        totalSpan.innerText = total.toLocaleString();
-    }
-
-    function exportToExcel() {
-        if (records.length === 0) {
-            alert('沒有資料喔！');
-            return;
-        }
-        const activityName = document.getElementById('activityName').value || '未命名活動';
-        const excelData = records.map(rec => ({
-            "活動名稱": activityName,
-            "日期": rec.date,
-            "項目": rec.item,
-            "金額": rec.amount
-        }));
-        const worksheet = XLSX.utils.json_to_sheet(excelData);
-        const workbook = XLSX.
+        /* 表格區塊 */
+        .table-wrapper { width: 100%; overflow-
