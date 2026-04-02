@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>活動記帳系統-修復版</title>
+    <title>活動記帳系統-穩定正式版</title>
+    <!-- 引入外部 Excel 庫 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         :root { --p: #4a90e2; --s: #27ae60; --d: #e74c3c; }
@@ -20,6 +21,7 @@
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
         th, td { padding: 12px 8px; text-align: left; border-bottom: 1px solid #eee; font-size: 14px; }
         .total-section { margin-top: 20px; text-align: right; font-size: 1.2rem; font-weight: bold; color: var(--d); }
+        .clear-btn { width:100%; background:#95a5a6; color:white; margin-top:20px; border:none; padding:10px; border-radius:8px; }
     </style>
 </head>
 <body>
@@ -36,7 +38,7 @@
     </div>
     <div class="form-group">
         <label>項目</label>
-        <input type="text" id="actItem" placeholder="項目名稱">
+        <input type="text" id="actItem" placeholder="例如：晚餐">
     </div>
     <div class="form-group">
         <label>金額</label>
@@ -44,7 +46,6 @@
     </div>
 
     <div class="btn-group">
-        <!-- 這裡的 onclick 必須對應下面的 function addItem -->
         <button type="button" class="btn-add" onclick="addItem()">新增紀錄</button>
         <button type="button" class="btn-export" onclick="exportExcel()">匯出 Excel</button>
         <button type="button" class="btn-import" onclick="document.getElementById('fileIn').click()">匯入 Excel</button>
@@ -57,82 +58,106 @@
     </table>
     
     <div class="total-section">總計：$<span id="totalSum">0</span></div>
-    <button type="button" onclick="clearData()" style="width:100%; background:#95a5a6; color:white; margin-top:20px; border:none; padding:10px; border-radius:8px;">全部清除</button>
+    <button type="button" class="clear-btn" onclick="clearData()">清空所有壞資料 (修復用)</button>
 </div>
 
 <script>
-    // 確保 dataList 是全域變數
+    // 使用新的儲存 Key 以防舊資料干擾
+    const STORAGE_KEY = 'ACCOUNTING_DATA_V3';
     let dataList = [];
 
-    // 定義新增函式 (必須在 window.onload 之外或正確的作用域內)
+    // 初始化載入
+    window.onload = function() {
+        console.log("系統啟動中...");
+        loadData();
+        document.getElementById('actDate').value = new Date().toISOString().split('T')[0];
+    };
+
+    function loadData() {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        try {
+            dataList = saved ? JSON.parse(saved) : [];
+            if (!Array.isArray(dataList)) dataList = [];
+        } catch (e) {
+            dataList = [];
+        }
+        document.getElementById('actName').value = localStorage.getItem('ACT_TITLE') || '';
+        render();
+    }
+
     function addItem() {
         console.log("嘗試新增資料...");
-        const dateVal = document.getElementById('actDate').value;
-        const itemVal = document.getElementById('actItem').value.trim();
-        const amountVal = parseFloat(document.getElementById('actAmount').value);
+        const d = document.getElementById('actDate').value;
+        const i = document.getElementById('actItem').value.trim();
+        const a = parseFloat(document.getElementById('actAmount').value);
 
-        if (!dateVal || !itemVal || isNaN(amountVal)) {
-            alert("請填寫完整資訊！");
+        if (!d || !i || isNaN(a)) {
+            alert("請填寫完整的日期、項目和金額");
             return;
         }
 
-        const newItem = { date: dateVal, item: itemVal, amount: amountVal };
+        const newItem = { date: d, item: i, amount: a };
         dataList.push(newItem);
         
         save();
-        show();
+        render();
 
-        // 清空輸入
+        // 清空輸入框
         document.getElementById('actItem').value = '';
         document.getElementById('actAmount').value = '';
+        console.log("新增成功:", newItem);
     }
 
     function save() {
-        localStorage.setItem('my_logs_v2', JSON.stringify(dataList));
-        localStorage.setItem('my_act_name', document.getElementById('actName').value);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(dataList));
+        localStorage.setItem('ACT_TITLE', document.getElementById('actName').value);
     }
 
-    function show() {
+    function render() {
         const tbody = document.getElementById('tableBody');
         tbody.innerHTML = '';
         let total = 0;
 
-        dataList.forEach((res, index) => {
-            const row = tbody.insertRow();
-            row.innerHTML = `
-                <td>${res.date}</td>
-                <td>${res.item}</td>
-                <td>$${Number(res.amount).toLocaleString()}</td>
-                <td><button onclick="delItem(${index})" style="background:#e74c3c; color:white; border:none; padding:5px 10px; border-radius:4px;">刪</button></td>
+        dataList.forEach((item, index) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${item.date}</td>
+                <td>${item.item}</td>
+                <td>$${Number(item.amount).toLocaleString()}</td>
+                <td><button onclick="delItem(${index})" style="background:var(--d); color:white; border:none; padding:5px 10px; border-radius:4px;">刪除</button></td>
             `;
-            total += Number(res.amount);
+            tbody.appendChild(tr);
+            total += Number(item.amount);
         });
 
         document.getElementById('totalSum').innerText = total.toLocaleString();
     }
 
     function delItem(index) {
-        if(confirm("確定刪除？")) {
+        if(confirm("確定刪除嗎？")) {
             dataList.splice(index, 1);
             save();
-            show();
+            render();
         }
     }
 
     function clearData() {
-        if(confirm("確定清空所有資料？")) {
+        if(confirm("這會清除目前所有紀錄，通常用於修復顯示問題，確定嗎？")) {
             dataList = [];
-            localStorage.removeItem('my_logs_v2');
-            show();
+            localStorage.clear(); // 強制清空所有 localStorage
+            save();
+            render();
+            alert("已清空，請重新開始輸入。");
         }
     }
 
+    // Excel 匯出/匯入邏輯
     function exportExcel() {
-        if (dataList.length === 0) return alert("沒有資料");
+        if (dataList.length === 0) return alert("沒資料可匯出");
         const ws = XLSX.utils.json_to_sheet(dataList);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Records");
-        XLSX.writeFile(wb, (document.getElementById('actName').value || "記帳") + ".xlsx");
+        XLSX.writeFile(wb, (document.getElementById('actName').value || "帳目紀錄") + ".xlsx");
     }
 
     function importExcel(input) {
@@ -143,29 +168,14 @@
             const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
             dataList = json.map(r => ({
                 date: r.date || r['日期'] || '',
-                item: r.item || r['項目'] || '',
+                item: r.item || r['項目'] || '未命名',
                 amount: parseFloat(r.amount || r['金額'] || 0)
             }));
             save();
-            show();
+            render();
         };
         reader.readAsArrayBuffer(input.files[0]);
     }
-
-    // 初始化載入
-    window.onload = function() {
-        console.log("系統已就緒");
-        const savedData = localStorage.getItem('my_logs_v2');
-        if (savedData) {
-            try {
-                dataList = JSON.parse(savedData);
-                if (!Array.isArray(dataList)) dataList = [];
-            } catch (e) { dataList = []; }
-        }
-        document.getElementById('actName').value = localStorage.getItem('my_act_name') || '';
-        document.getElementById('actDate').value = new Date().toISOString().split('T')[0];
-        show();
-    };
 </script>
 </body>
 </html>
