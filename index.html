@@ -3,31 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>活動記帳系統-全平台相容版</title>
-    <!-- 引用 Excel 處理庫 -->
+    <title>活動記帳系統-電腦相容強化版</title>
+    <!-- 引入 Excel 庫 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
-        :root { --p: #4a90e2; --s: #27ae60; --d: #e74c3c; --bg: #f8f9fa; }
-        body { font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; margin: 0; padding: 15px; background: var(--bg); }
+        :root { --primary: #4a90e2; --success: #27ae60; --danger: #e74c3c; --warning: #f39c12; }
+        body { font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; margin: 0; padding: 15px; background: #f8f9fa; }
         .container { max-width: 550px; margin: auto; background: white; padding: 25px; border-radius: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        h2 { text-align: center; color: #333; margin-top: 0; }
+        h2 { text-align: center; color: #333; margin-bottom: 20px; }
         .form-group { margin-bottom: 15px; }
         label { display: block; margin-bottom: 6px; font-weight: bold; color: #555; }
-        input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; box-sizing: border-box; transition: border 0.3s; }
-        input:focus { border-color: var(--p); outline: none; }
-        .btn-group { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 20px 0; }
-        button { padding: 14px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; color: white; cursor: pointer; transition: opacity 0.2s; }
-        .btn-add { background: var(--p); grid-column: span 2; }
-        .btn-export { background: var(--s); }
-        .btn-import { background: #f39c12; }
+        input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; box-sizing: border-box; }
+        input:focus { border-color: var(--primary); outline: none; }
+        .btn-group { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
+        button { padding: 14px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; color: white; cursor: pointer; transition: 0.2s; }
+        .btn-add { background: var(--primary); grid-column: span 2; }
+        .btn-export { background: var(--success); }
+        .btn-import { background: var(--warning); }
         .btn-clear { background: #95a5a6; width: 100%; margin-top: 15px; }
-        button:hover { opacity: 0.9; }
-        button:active { transform: scale(0.98); }
+        button:active { transform: scale(0.98); opacity: 0.9; }
         .table-wrapper { width: 100%; overflow-x: auto; margin-top: 25px; border: 1px solid #eee; border-radius: 8px; }
         table { width: 100%; border-collapse: collapse; min-width: 350px; }
-        th, td { padding: 14px 10px; text-align: left; border-bottom: 1px solid #f0f0f0; font-size: 15px; }
-        th { background: #fcfcfc; color: #888; font-weight: 500; }
-        .total-section { margin-top: 20px; text-align: right; font-size: 1.4rem; font-weight: bold; color: var(--d); border-top: 2px solid #eee; padding-top: 15px; }
+        th, td { padding: 12px 10px; text-align: left; border-bottom: 1px solid #f0f0f0; }
+        th { background: #fafafa; color: #666; font-size: 14px; }
+        .total-section { margin-top: 20px; text-align: right; font-size: 1.4rem; font-weight: bold; color: var(--danger); border-top: 2px solid #eee; padding-top: 15px; }
     </style>
 </head>
 <body>
@@ -40,11 +39,12 @@
         <input type="text" id="activityName" placeholder="輸入活動名稱" oninput="localStorage.setItem('current_activity_name', this.value)">
     </div>
     <div class="form-group"><label>日期</label><input type="date" id="date"></div>
-    <div class="form-group"><label>項目</label><input type="text" id="item" placeholder="例如：車資"></div>
-    <div class="form-group"><label>金額</label><input type="number" id="amount" inputmode="decimal" placeholder="輸入金額"></div>
+    <div class="form-group"><label>項目</label><input type="text" id="item" placeholder="請輸入項目 (例如：晚餐)"></div>
+    <div class="form-group"><label>金額</label><input type="number" id="amount" placeholder="請輸入數字"></div>
 
     <div class="btn-group">
-        <button type="button" class="btn-add" onclick="doAdd()">新增紀錄</button>
+        <!-- 核心修正：使用 onclick="doAdd(event)" 並指定 type="button" -->
+        <button type="button" class="btn-add" onclick="doAdd(event)">新增紀錄</button>
         <button type="button" class="btn-export" onclick="doExport()">匯出 Excel</button>
         <button type="button" class="btn-import" onclick="document.getElementById('importFile').click()">匯入 Excel</button>
         <input type="file" id="importFile" style="display:none" accept=".xlsx, .xls" onchange="handleImport(this)">
@@ -56,4 +56,108 @@
             <tbody id="recordBody"></tbody>
         </table>
     </div>
-    <div class="total-
+    
+    <div class="total-section">總計：$<span id="totalAmount">0</span></div>
+    
+    <button type="button" class="btn-clear" onclick="doClear()">清除本機資料</button>
+</div>
+
+<script>
+    let records = [];
+
+    window.onload = function() {
+        try {
+            // 讀取並驗證資料
+            const saved = localStorage.getItem('activity_records');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                records = Array.isArray(parsed) ? parsed : [];
+            }
+            document.getElementById('activityName').value = localStorage.getItem('current_activity_name') || '';
+            document.getElementById('date').value = new Date().toISOString().split('T')[0];
+            render();
+        } catch (e) {
+            console.error("初始化失敗:", e);
+            records = [];
+        }
+    };
+
+    function doAdd(event) {
+        if (event) event.preventDefault(); // 防止電腦版頁面重新整理
+
+        const dInput = document.getElementById('date');
+        const iInput = document.getElementById('item');
+        const aInput = document.getElementById('amount');
+
+        const d = dInput.value;
+        const i = iInput.value.trim();
+        const a = parseFloat(aInput.value);
+
+        if (!d || !i || isNaN(a)) {
+            alert("請填寫完整資訊！");
+            return;
+        }
+
+        // 新增資料
+        records.push({ date: d, item: i, amount: a });
+        
+        // 儲存與更新
+        localStorage.setItem('activity_records', JSON.stringify(records));
+        render();
+
+        // 電腦版優化：清空並聚焦回項目欄位
+        iInput.value = '';
+        aInput.value = '';
+        iInput.focus(); 
+    }
+
+    function render() {
+        const tbody = document.getElementById('recordBody');
+        let html = '';
+        let total = 0;
+
+        records.forEach((rec, idx) => {
+            html += `<tr>
+                <td>${rec.date}</td>
+                <td>${rec.item}</td>
+                <td>$${Number(rec.amount).toLocaleString()}</td>
+                <td><button type="button" style="background:var(--danger); padding:5px 10px; font-size:12px; border-radius:4px;" onclick="doDelete(${idx})">刪除</button></td>
+            </tr>`;
+            total += Number(rec.amount);
+        });
+
+        tbody.innerHTML = html;
+        document.getElementById('totalAmount').innerText = total.toLocaleString();
+    }
+
+    function doDelete(idx) {
+        if (confirm("確定刪除嗎？")) {
+            records.splice(idx, 1);
+            localStorage.setItem('activity_records', JSON.stringify(records));
+            render();
+        }
+    }
+
+    function doClear() {
+        if (confirm("這會清除所有本機資料，確定嗎？")) {
+            records = [];
+            localStorage.removeItem('activity_records');
+            render();
+        }
+    }
+
+    function doExport() {
+        if (records.length === 0) return alert("無資料可匯出");
+        const ws = XLSX.utils.json_to_sheet(records);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "記帳紀錄");
+        XLSX.writeFile(wb, "活動記帳.xlsx");
+    }
+
+    function handleImport(input) {
+        const file = input.files[0];
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, {type: 'array'});
+            const json =
