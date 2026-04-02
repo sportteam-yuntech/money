@@ -2,49 +2,166 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <!-- 關鍵：防止手機縮放導致 UI 跑版，並優化 Web App 顯示 -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>活動記帳系統 Pro Mobile V3</title>
-    
-    <!-- 載入 Excel 處理庫 -->
+    <title>活動記帳系統 iOS 優化版</title>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-    
     <style>
-        :root { 
-            --primary-color: #4a90e2; 
-            --success-color: #27ae60; 
-            --danger-color: #e74c3c;
-            --bg-color: #f0f2f5; 
-        }
+        :root { --primary: #4a90e2; --success: #27ae60; --danger: #e74c3c; }
+        body { font-family: -apple-system, sans-serif; margin: 0; padding: 15px; background: #f4f7f9; }
+        .container { max-width: 500px; margin: auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; color: #444; }
         
-        body { 
-            font-family: "Microsoft JhengHei", -apple-system, sans-serif; 
-            margin: 0; padding: 15px; background: var(--bg-color); 
-            -webkit-tap-highlight-color: transparent;
-        }
-        
-        .container { max-width: 600px; margin: auto; background: white; padding: 20px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
-        h2 { text-align: center; color: #333; margin: 0 0 20px 0; font-size: 1.4rem; }
-        
-        .form-group { margin-bottom: 12px; }
-        label { display: block; margin-bottom: 6px; font-weight: bold; color: #555; font-size: 0.9rem; }
-        
-        /* 加大輸入框與防止 iOS 自動縮放 (16px) */
+        /* 針對 iOS Safari 優化輸入框 */
         input { 
-            width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; 
-            box-sizing: border-box; font-size: 16px; background: #fff;
+            width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 8px; 
+            font-size: 16px; -webkit-appearance: none; box-sizing: border-box;
         }
         
-        .btn-group { display: flex; gap: 10px; margin-top: 15px; }
+        .btn-group { display: flex; gap: 8px; margin: 20px 0; }
+        
+        /* 關鍵：解決 Safari 點擊問題 */
         button { 
             flex: 1; padding: 14px; border: none; border-radius: 8px; 
-            font-size: 16px; font-weight: bold; cursor: pointer; color: white;
+            font-size: 16px; font-weight: bold; color: white;
+            cursor: pointer; -webkit-appearance: none; touch-action: manipulation;
         }
-        .btn-add { background: var(--primary-color); flex: 2; }
-        .btn-export { background: var(--success-color); }
+        .btn-add { background: var(--primary); }
+        .btn-export { background: var(--success); }
         .btn-clear { background: #95a5a6; }
-        button:active { opacity: 0.8; transform: scale(0.98); }
+        button:active { opacity: 0.6; }
 
-        /* 表格區塊 */
-        .table-wrapper { width: 100%; overflow-
+        .table-wrapper { width: 100%; overflow-x: auto; margin-top: 20px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px 8px; text-align: left; border-bottom: 1px solid #eee; font-size: 14px; }
+        .btn-delete { background: var(--danger); padding: 6px 12px; font-size: 12px; width: auto; flex: none; }
+        .total-section { margin-top: 20px; text-align: right; font-size: 1.2rem; font-weight: bold; color: #d9534f; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>活動記帳系統</h2>
+    <div class="form-group">
+        <label>活動名稱</label>
+        <input type="text" id="activityName" placeholder="請輸入活動名稱" oninput="saveActivityName()">
+    </div>
+    <div class="form-group">
+        <label>日期</label>
+        <input type="date" id="date">
+    </div>
+    <div class="form-group">
+        <label>項目</label>
+        <input type="text" id="item" placeholder="例如：餐費">
+    </div>
+    <div class="form-group">
+        <label>金額</label>
+        <input type="number" id="amount" inputmode="decimal" placeholder="請輸入金額">
+    </div>
+
+    <div class="btn-group">
+        <!-- 關鍵：加上 type="button" 防止 Safari 預設表單行為 -->
+        <button type="button" class="btn-add" onclick="handleNewRecord()">新增紀錄</button>
+        <button type="button" class="btn-export" onclick="exportToExcel()">匯出</button>
+    </div>
+
+    <div class="table-wrapper">
+        <table>
+            <thead><tr><th>日期</th><th>項目</th><th>金額</th><th></th></tr></thead>
+            <tbody id="recordBody"></tbody>
+        </table>
+    </div>
+    <div class="total-section">總計：$<span id="totalAmount">0</span></div>
+    <button type="button" class="btn-clear" style="width:100%; margin-top:20px;" onclick="clearAll()">全部清除</button>
+</div>
+
+<script>
+    let records = JSON.parse(localStorage.getItem('activity_records')) || [];
+
+    window.onload = function() {
+        document.getElementById('date').value = new Date().toISOString().split('T')[0];
+        document.getElementById('activityName').value = localStorage.getItem('current_activity_name') || '';
+        renderRecords();
+    };
+
+    function saveActivityName() {
+        localStorage.setItem('current_activity_name', document.getElementById('activityName').value);
+    }
+
+    // 使用 handleNewRecord 包裝，確保非同步穩定
+    function handleNewRecord() {
+        const d = document.getElementById('date').value;
+        const i = document.getElementById('item').value.trim();
+        const aStr = document.getElementById('amount').value;
+        const a = parseFloat(aStr);
+
+        if (!d || !i || isNaN(a)) {
+            alert("請填寫正確的日期、項目與金額！");
+            return;
+        }
+
+        const newEntry = { date: d, item: i, amount: a };
+        records.push(newEntry);
+
+        // 核心修正：先執行 UI 清除與收起鍵盤，延遲儲存確保順暢
+        document.getElementById('item').value = '';
+        document.getElementById('amount').value = '';
+        document.activeElement.blur(); 
+
+        setTimeout(() => {
+            saveAndRender();
+        }, 100);
+    }
+
+    function saveAndRender() {
+        try {
+            localStorage.setItem('activity_records', JSON.stringify(records));
+            renderRecords();
+        } catch (e) {
+            alert("儲存失敗，可能是空間不足或隱私模式限制");
+        }
+    }
+
+    function renderRecords() {
+        const tbody = document.getElementById('recordBody');
+        let total = 0;
+        tbody.innerHTML = '';
+        
+        records.forEach((rec, index) => {
+            const row = `<tr>
+                <td>${rec.date.substring(5)}</td>
+                <td>${rec.item}</td>
+                <td>$${rec.amount.toLocaleString()}</td>
+                <td><button type="button" class="btn-delete" onclick="deleteRecord(${index})">刪</button></td>
+            </tr>`;
+            tbody.innerHTML += row;
+            total += rec.amount;
+        });
+        document.getElementById('totalAmount').innerText = total.toLocaleString();
+    }
+
+    function deleteRecord(index) {
+        if(confirm("確定刪除？")) {
+            records.splice(index, 1);
+            saveAndRender();
+        }
+    }
+
+    function clearAll() {
+        if(confirm("確定清除所有？")) {
+            records = [];
+            saveAndRender();
+        }
+    }
+
+    function exportToExcel() {
+        if (records.length === 0) return alert('無資料');
+        const ws = XLSX.utils.json_to_sheet(records);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Records");
+        XLSX.writeFile(wb, "records.xlsx");
+    }
+</script>
+</body>
+</html>
