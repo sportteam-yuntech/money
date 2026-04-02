@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>活動記帳系統-最終相容版</title>
+    <title>活動記帳系統-修復版</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         :root { --p: #4a90e2; --s: #27ae60; --d: #e74c3c; }
@@ -44,6 +44,7 @@
     </div>
 
     <div class="btn-group">
+        <!-- 這裡的 onclick 必須對應下面的 function addItem -->
         <button type="button" class="btn-add" onclick="addItem()">新增紀錄</button>
         <button type="button" class="btn-export" onclick="exportExcel()">匯出 Excel</button>
         <button type="button" class="btn-import" onclick="document.getElementById('fileIn').click()">匯入 Excel</button>
@@ -60,26 +61,12 @@
 </div>
 
 <script>
+    // 確保 dataList 是全域變數
     let dataList = [];
 
-    // 1. 初始化
-    window.onload = function() {
-        const savedData = localStorage.getItem('my_logs');
-        if (savedData) {
-            try {
-                dataList = JSON.parse(savedData);
-                if (!Array.isArray(dataList)) dataList = [];
-            } catch (e) {
-                dataList = [];
-            }
-        }
-        document.getElementById('actName').value = localStorage.getItem('my_act_name') || '';
-        document.getElementById('actDate').value = new Date().toISOString().split('T')[0];
-        show();
-    };
-
-    // 2. 新增功能
+    // 定義新增函式 (必須在 window.onload 之外或正確的作用域內)
     function addItem() {
+        console.log("嘗試新增資料...");
         const dateVal = document.getElementById('actDate').value;
         const itemVal = document.getElementById('actItem').value.trim();
         const amountVal = parseFloat(document.getElementById('actAmount').value);
@@ -92,17 +79,19 @@
         const newItem = { date: dateVal, item: itemVal, amount: amountVal };
         dataList.push(newItem);
         
-        localStorage.setItem('my_logs', JSON.stringify(dataList));
-        localStorage.setItem('my_act_name', document.getElementById('actName').value);
-        
+        save();
+        show();
+
         // 清空輸入
         document.getElementById('actItem').value = '';
         document.getElementById('actAmount').value = '';
-        
-        show();
     }
 
-    // 3. 顯示功能
+    function save() {
+        localStorage.setItem('my_logs_v2', JSON.stringify(dataList));
+        localStorage.setItem('my_act_name', document.getElementById('actName').value);
+    }
+
     function show() {
         const tbody = document.getElementById('tableBody');
         tbody.innerHTML = '';
@@ -122,11 +111,10 @@
         document.getElementById('totalSum').innerText = total.toLocaleString();
     }
 
-    // 4. 刪除與清除
     function delItem(index) {
         if(confirm("確定刪除？")) {
             dataList.splice(index, 1);
-            localStorage.setItem('my_logs', JSON.stringify(dataList));
+            save();
             show();
         }
     }
@@ -134,10 +122,50 @@
     function clearData() {
         if(confirm("確定清空所有資料？")) {
             dataList = [];
-            localStorage.removeItem('my_logs');
+            localStorage.removeItem('my_logs_v2');
             show();
         }
     }
 
-    // 5. 匯出/匯入
     function exportExcel() {
+        if (dataList.length === 0) return alert("沒有資料");
+        const ws = XLSX.utils.json_to_sheet(dataList);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Records");
+        XLSX.writeFile(wb, (document.getElementById('actName').value || "記帳") + ".xlsx");
+    }
+
+    function importExcel(input) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, {type: 'array'});
+            const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+            dataList = json.map(r => ({
+                date: r.date || r['日期'] || '',
+                item: r.item || r['項目'] || '',
+                amount: parseFloat(r.amount || r['金額'] || 0)
+            }));
+            save();
+            show();
+        };
+        reader.readAsArrayBuffer(input.files[0]);
+    }
+
+    // 初始化載入
+    window.onload = function() {
+        console.log("系統已就緒");
+        const savedData = localStorage.getItem('my_logs_v2');
+        if (savedData) {
+            try {
+                dataList = JSON.parse(savedData);
+                if (!Array.isArray(dataList)) dataList = [];
+            } catch (e) { dataList = []; }
+        }
+        document.getElementById('actName').value = localStorage.getItem('my_act_name') || '';
+        document.getElementById('actDate').value = new Date().toISOString().split('T')[0];
+        show();
+    };
+</script>
+</body>
+</html>
